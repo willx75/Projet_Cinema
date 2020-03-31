@@ -5,7 +5,7 @@ DROP FUNCTION IF EXISTS creationReservation(id_resa INTEGER, date_resa TIMESTAMP
 DROP FUNCTION IF EXISTS creationSeances(id_seances INTEGER, date TIMESTAMP, tarif INTEGER);
 DROP FUNCTION IF EXISTS creationSalles (id_salles INTEGER, ecrans INTEGER, nb_place_max INTEGER);
 DROP FUNCTION IF EXISTS creationCinema (id_cinema INTEGER, adresse VARCHAR, nb_salle_max INTEGER);
-DROP FUNCTION IF EXISTS creationPayement (id_payement INTEGER, date_payement INTEGER, transaction INTEGER, recette INTEGER, benefice INTEGER);
+DROP FUNCTION IF EXISTS creationPayement (id_payement INTEGER, date_payement INTEGER, prix_film INTEGER, recette INTEGER, benefice INTEGER);
 DROP FUNCTION IF EXISTS creationProgrammateur(id_prog INTEGER);
 DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER);
 
@@ -38,7 +38,7 @@ $$ LANGUAGE plpgsql;
 
 create or replace function creationFilm(id_films INTEGER, titre VARCHAR(255), genre varchar(255),
                                         nationalite varchar(255), langues varchar(255), synopsis varchar(255),
-                                        montant_film integer, id_distri integer) returns void as
+                                        montant_film integer) returns void as
 $$
 begin
     if id_films is NULL OR id_films = 0 then
@@ -55,8 +55,7 @@ begin
         raise EXCEPTION 'synopsis is null';
     elsif montant_film is null then
         raise EXCEPTION 'montant is null';
-    elsif id_distri is null then
-        raise EXCEPTION 'distributeurs is null';
+
     ELSE
         INSERT INTO Films(id_films, titre, genre, nationalite, langue, synopsis, prix_film, id_distri)
         VALUES (id_films, titre, genre, nationalite, langue, synopsis, prix_film, id_distri);
@@ -185,7 +184,7 @@ $$ LANGUAGE plpgsql;
 
 --- creation d'une transaction
 
-CREATE OR REPLACE FUNCTION creationPayement(id_payement INTEGER, date_payement INTEGER, transaction INTEGER,
+CREATE OR REPLACE FUNCTION creationPayement(id_payement INTEGER, date_payement INTEGER, prix_film INTEGER,
                                             recette INTEGER, benefice INTEGER) RETURNS VOID AS
 $$
 BEGIN
@@ -193,15 +192,15 @@ BEGIN
         RAISE EXCEPTION 'payement is null' ;
     elsif date_payement IS NULL OR date_payement >= getDate() THEN
         RAISE EXCEPTION 'Date de payement est valide';
-    elsif transaction IS NULL THEN
-        RAISE EXCEPTION 'transaction is null';
+    elsif prix_film IS NULL THEN
+        RAISE EXCEPTION 'Le prix du film is null';
     elsif recette IS NULL THEN
         RAISE EXCEPTION 'recette is null';
     elsif benefice IS NULL THEN
         RAISE EXCEPTION 'benefice is null';
     ELSE
-        INSERT INTO Payement(id_payement, date_payement, transaction, recette, benefice, id_resa)
-        VALUES (id_payement, date_payement, transaction, recette, benefice, id_resa);
+        INSERT INTO Payement(id_payement, date_payement, prix_film, recette, benefice, id_resa)
+        VALUES (id_payement, date_payement, prix_film, recette, benefice, id_resa);
     end if;
 end;
 $$ LANGUAGE plpgsql;
@@ -276,4 +275,4 @@ $$ LANGUAGE plpgsql;
 
 /***********************************************************************************************************/
 
-
+CREATE OR REPLACE FUNCTION achatBillet ()
