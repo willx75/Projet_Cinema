@@ -1,118 +1,164 @@
-DROP TABLE IF EXISTS Films CASCADE;
-DROP TABLE IF EXISTS Spectateurs CASCADE;
+DROP TABLE IF EXISTS Film CASCADE;
+DROP TABLE IF EXISTS Spectateur CASCADE;
 DROP TABLE IF EXISTS Reservation CASCADE;
 DROP TABLE IF EXISTS Seance CASCADE;
 DROP TABLE IF EXISTS Salle CASCADE;
 DROP TABLE IF EXISTS Cinema CASCADE;
-DROP TABLE IF EXISTS Payement CASCADE;
-DROP TABLE IF EXISTS Programmateurs CASCADE;
-DROP TABLE IF EXISTS Distributeurs CASCADE;
+DROP TABLE IF EXISTS Transaction CASCADE;
+DROP TABLE IF EXISTS Programmateur CASCADE;
+DROP TABLE IF EXISTS Distributeur CASCADE;
 DROP TABLE IF EXISTS Contrat_De_Diffusion CASCADE;
+DROP TABLE IF EXISTS Archivage CASCADE;
+DROP TABLE IF EXISTS Date CASCADE;
 
-create table Distributeurs
+/**********************************************************************************************************************/
+
+create table Distributeur
 (
-    id_distri SERIAL PRIMARY KEY
+    id_distri SERIAL PRIMARY KEY,
+    nom       VARCHAR(50) NOT NULL
 
 );
 
-CREATE TABLE Films
-(
-    id_films    SERIAL PRIMARY KEY,
-    titre       VARCHAR(255) NOT NULL,
-    genre       VARCHAR(255) NOT NULL,
-    nationalite VARCHAR(50)  NOT NULL,
-    langue      VARCHAR(50)  NOT NULL,
-    synopsis    text         NOT NULL,
-    prix_film   FLOAT        NOT NULL,
-    id_distri   INTEGER      not null,
+/**********************************************************************************************************************/
 
-    CONSTRAINT distri_film foreign key (id_distri)
-        REFERENCES Distributeurs (id_distri)
+create table Programmateur
+(
+    id_prog SERIAL PRIMARY KEY,
+    nom     VARCHAR(50) NOT NULL
 );
 
-create table Seances
-(
-    id_seances SERIAL PRIMARY KEY,
-    date       timestamp not null,
-    tarif      integer   not null,
-    id_films   INTEGER   NOT NULL
-        REFERENCES Films (id_films),
-    id_salles  INTEGER   NOT NULL
-        REFERENCES Seances (id_salles)
-);
-
-create table Salles
-(
-    id_salles    SERIAL PRIMARY KEY,
-    ecrans       INTEGER NOT NULL, -- check si le nombre d'ecran est superieur ou non a la capacite de films qui seront produit  --
-    nb_place_max integer not null, --check pour connaitre le nombre de place maximales
-    id_cine      INTEGER NOT NULL,
-
-    CONSTRAINT salles_cine FOREIGN KEY (id_cine)
-        REFERENCES Cinema (id_cine)
-);   
+/**********************************************************************************************************************/
 
 CREATE TABLE Cinema
 (
     id_cine      SERIAL PRIMARY KEY,
     adresse      VARCHAR(255) NOT NULL,
     nb_salle_max INTEGER      NOT NULL, --check pour connaitre le nombre de salles maximales
-    id_prog      INTEGER      NOT NULL,
-
-    CONSTRAINT cinema_prog FOREIGN KEY (id_prog)
-        REFERENCES Programmateurs (id_prog)
+    id_prog      INTEGER      NOT NULL REFERENCES Programmateur (id_prog)
 );
+/**********************************************************************************************************************/
 
-create table Programmateurs
+CREATE TABLE Film
 (
-    id_prog SERIAL PRIMARY KEY
+    id_film     INTEGER PRIMARY KEY,
+    titre       VARCHAR(255) NOT NULL,
+    genre       VARCHAR(255) NOT NULL,
+    nationalite VARCHAR(50)  NOT NULL,
+    langue      VARCHAR(50)  NOT NULL,
+    synopsis    text         NOT NULL,
+    prix_film   FLOAT        NOT NULL,
+    id_distri   INTEGER      not null REFERENCES Distributeur (id_distri)
 );
 
+/**********************************************************************************************************************/
 
+create table Salle
+(
+    id_salle      SERIAL PRIMARY KEY,
+    nb_places_max INTEGER NOT NULL, --check pour connaitre le nombre de place maximales
+    id_cine       INTEGER NOT NULL REFERENCES Cinema (id_cine)
+);
 
-create table Spectateurs
+/**********************************************************************************************************************/
+
+create table Seance
+(
+    id_seance       SERIAL PRIMARY KEY,
+    date_seance     TIMESTAMP NOT NULL,
+    tarif_abo       INTEGER   NOT NULL,
+    tarif_spec      INTEGER   NOT NULL,
+    nb_places_dispo INTEGER   NOT NULL,
+    id_salle        INTEGER   NOT NULL REFERENCES Salle (id_salle),
+    titre           INTEGER   NOT NULL REFERENCES Film (id_film)
+
+);
+
+/**********************************************************************************************************************/
+
+create table Spectateur
 (
     id_spec SERIAL PRIMARY KEY,
-    nom     VARCHAR(50)  NOT NULL,
-    prenom  VARCHAR(50)  NOT NULL,
-    age     INTEGER      NOT NULL,
-    email   VARCHAR(255) NOT NULL,
-    abonnes BOOLEAN      NOT NULL --true = reduction prix des billets false = payement du billet a 100%
+    age     INTEGER NOT NULL
 
 );
 
-create table Reservation
+/**********************************************************************************************************************/
+
+create table Abonne
 (
-    id_resa     SERIAL PRIMARY KEY,
-    date_resa   timestamp NOT NULL,
-    prix        FLOAT     NOT NULL check ( prix >= 0 ), --si abonnée alors prix de la reservation = prix * 30%
-    pseudo      INTEGER   NOT NULL,
-    REFERENCES  Spectateurs(pseudo),
-    id_payement INTEGER   NOT NULL,
-    REFERENCES  Payement(id_payement),
-    id_seances  INTEGER   NOT NULL
-        REFERENCES Seances (id_seances)
+    id_abo SERIAL PRIMARY KEY,
+    nom    VARCHAR(50)  NOT NULL,
+    prenom VARCHAR(50)  NOT NULL,
+    sexe   VARCHAR(50)  NOT NULL,
+    email  VARCHAR(255) NOT NULL
+) INHERITS (Spectateur);
 
-
-);
-
-create table Payement
-(
-    id_payement   SERIAL PRIMARY KEY,
-    date_payement timestamp NOT NULL,
-    transaction   float check ( transaction >= 0 ),
-    recette       float check ( recette > 0 ), --prix de toute les transaction(cout total * cpit de production)
-    benefice      float check ( benefice > 0),--
-    id_resa       INTEGER   NOT NULL,
-
-    CONSTRAINT payement_resa FOREIGN KEY (id_resa)
-        REFERENCES Reservation (id_payement)
-
-);
-
+/**********************************************************************************************************************/
 
 create TABLE Contrat_De_Diffusion
 (
-    --  id_distri SERIAL PRIMARY KEY,
-    id_prog SERIAL PRIMARY KEY
+    contrat VARCHAR(255) PRIMARY KEY,
+    montant INTEGER NOT NULL,
+    licence text    not null,
+    id_prog INTEGER NOT NULL REFERENCES Programmateur (id_prog),
+    id_dist INTEGER NOT NULL REFERENCES Distributeur (id_distri)
+
 );
+/**********************************************************************************************************************/
+
+create TABLE Date
+(
+    date_actuelle TIMESTAMP PRIMARY KEY
+);
+
+/**********************************************************************************************************************/
+
+
+CREATE TABLE Archivage
+(
+    recette  float check ( recette > 0 ), --prix de toute les transaction(cout total * cpit de production)
+    benefice float check ( benefice > 0),
+    date     timestamp not null
+
+);
+
+
+/**********************************************************************************************************************/
+
+create table Transaction
+(
+    id_trans      SERIAL PRIMARY KEY,
+    date_payement timestamp NOT NULL,
+    payement      float check ( payement >= 0 ),
+    id_resa       INTEGER   NOT NULL
+
+);
+
+/**********************************************************************************************************************/
+
+create table Reservation
+(
+    id_resa    SERIAL PRIMARY KEY,
+    date_resa  timestamp NOT NULL,
+    prix       FLOAT     NOT NULL check ( prix >= 0 ), --si abonnée alors prix de la reservation = prix * 30%
+    id_spec    INTEGER   NOT NULL
+        REFERENCES Spectateur (id_spec),
+    id_trans   INTEGER   NOT NULL
+        REFERENCES Transaction (id_trans),
+    id_seances INTEGER   NOT NULL
+        REFERENCES Seance (id_seance)
+);
+
+/**********************************************************************************************************************/
+
+
+ALTER TABLE Transaction
+    ADD CONSTRAINT Transaction_Reservation_Fk
+        FOREIGN KEY (id_resa)
+            REFERENCES Reservation (id_resa);
+
+ALTER TABLE Reservation
+    ADD CONSTRAINT Reservation_Transaction_Fk
+        FOREIGN KEY (id_trans)
+            REFERENCES Transaction (id_trans);
