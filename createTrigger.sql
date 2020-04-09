@@ -1,19 +1,31 @@
 DROP FUNCTION IF EXISTS getDate();
 DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer);
-DROP FUNCTION IF EXISTS creationSpectateurs(id_spec INTEGER, nom varchar, prenom varchar, age int, email varchar, synopsis varchar);
+DROP FUNCTION IF EXISTS creationSpectateurs(id_spec INTEGER, age int);
+DROP FUNCTION IF EXISTS creationAbonne(id_abo INTEGER, nom varchar, prenom varchar, email varchar);
 DROP FUNCTION IF EXISTS creationReservation(id_resa INTEGER, date_resa TIMESTAMP, prix INTEGER);
-DROP FUNCTION IF EXISTS creationSeances(id_seances INTEGER, date TIMESTAMP, tarif INTEGER);
-DROP FUNCTION IF EXISTS creationSalles (id_salles INTEGER, ecrans INTEGER, nb_place_max INTEGER);
+DROP FUNCTION IF EXISTS creationSeances(id_seance INTEGER, date_seance TIMESTAMP, tarif_abo INTEGER, tarif_spec INTEGER, nb_places_dispo INTEGER);
+DROP FUNCTION IF EXISTS creationSalles (id_salle INTEGER, nb_place_max INTEGER);
 DROP FUNCTION IF EXISTS creationCinema (id_cinema INTEGER, adresse VARCHAR, nb_salle_max INTEGER);
-DROP FUNCTION IF EXISTS creationPayement (id_payement INTEGER, date_payement INTEGER, prix_film INTEGER, recette INTEGER, benefice INTEGER);
-DROP FUNCTION IF EXISTS creationProgrammateur(id_prog INTEGER);
-DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER);
-
+DROP FUNCTION IF EXISTS creationTransaction (id_payement INTEGER, date_payement INTEGER, prix_film INTEGER, recette INTEGER, benefice INTEGER);
+DROP FUNCTION IF EXISTS creationProgrammateur(id_prog INTEGER, nom varchar);
+DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar);
+DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant INTEGER, licence text);
+DROP FUNCTION IF EXISTS creationArchive(recette integer, benefice INTEGER, date timestamp);
+DROP FUNCTION IF EXISTS creationBillet(id_billet integer, numero_billet INTEGER, prix_billet float);
 
 DROP FUNCTION IF EXISTS addOneDay();
 DROP FUNCTION IF EXISTS addOneWeek();
 DROP FUNCTION IF EXISTS addOneMonth();
 
+
+
+DROP FUNCTION IF EXISTS reservation();
+DROP FUNCTION IF EXISTS inscriptionAbonnes();
+DROP FUNCTION IF EXISTS achatBillet ();
+
+
+DROP TRIGGER IF EXISTS t_sexe_abonne ON abonne;
+--signature du contrat avant transaction
 
 /***********************************************************************************************************/
 
@@ -37,7 +49,7 @@ $$ LANGUAGE plpgsql;
 ------ Creation d'un film
 
 create or replace function creationFilm(id_films INTEGER, titre VARCHAR(255), genre varchar(255),
-                                        nationalite varchar(255), langues varchar(255), synopsis varchar(255),
+                                        nationalite varchar(255), langue varchar(255), synopsis varchar(255),
                                         montant_film integer) returns void as
 $$
 begin
@@ -49,7 +61,7 @@ begin
         raise EXCEPTION 'genre is null';
     elsif nationalite is null or nationalite = '' then
         raise EXCEPTION 'nationalite is null';
-    elsif langues is null or langues = '' then
+    elsif langue is null or langue = '' then
         raise EXCEPTION 'langues is null';
     elsif synopsis is null or synopsis = '' then
         raise EXCEPTION 'synopsis is null';
@@ -57,7 +69,7 @@ begin
         raise EXCEPTION 'montant is null';
 
     ELSE
-        INSERT INTO Films(id_films, titre, genre, nationalite, langue, synopsis, prix_film, id_distri)
+        INSERT INTO Film(id_film, titre, genre, nationalite, langue, synopsis, prix_film, id_distri)
         VALUES (id_films, titre, genre, nationalite, langue, synopsis, prix_film, id_distri);
     end if;
 end ;
@@ -68,28 +80,46 @@ $$ LANGUAGE plpgsql;
 
 --Creation d'un spectateurs ---
 
-create or replace function creationSpectateurs(id_spec INTEGER, nom varchar, prenom varchar, age int,
-                                               email varchar, abonnes boolean) returns void as
+create or replace function creationSpectateurs(id_spec INTEGER, age int) returns void as
 $$
 begin
     if id_spec is null or id_spec = 0 then
         raise EXCEPTION 'spectateur is null' ;
-    elsif nom is null or nom = '' then
-        raise exception 'Name is null' ;
-    elsif prenom is null or prenom = '' then
-        raise exception 'Prenom is null' ;
     elsif age is null then
         raise exception 'age is null' ;
-    elsif email is null then
-        raise exception 'email is null' ;
-    elsif abonnes is null then
-        raise exception 'abonne is null';
 
     ELSE
-        INSERT INTO Spectateurs(id_spec, nom, prenom, age, email, abonnes)
-        VALUES (id_spec, nom, prenom, age, email, abonnes);
+        INSERT INTO Spectateur(id_spec, age)
+        VALUES (id_spec, age);
     end if;
 end;
+$$ LANGUAGE plpgsql;
+
+/***********************************************************************************************************/
+
+--creation d'un abonne
+
+CREATE OR REPLACE function creationAbonne(id_abo INTEGER, nom varchar, prenom varchar, email varchar) returns void as
+$$
+BEGIN
+
+    if id_abo is null or id_abo = 0 then
+        raise EXCEPTION 'abonne is null' ;
+    elsif nom is null or nom = ' ' then
+        raise exception 'nom is null ';
+    elsif prenom is null or prenom = ' ' then
+        raise exception 'prenom is null ';
+    elsif email is null or email = ' ' then
+        raise exception 'prenom is null ';
+
+    ELSE
+        INSERT INTO Abonne(id_spec, age, id_abo, nom, prenom, sexe, email)
+        VALUES (id_spec, age, id_abo, nom, prenom, sexe, email);
+
+    end if;
+
+end;
+
 $$ LANGUAGE plpgsql;
 
 /***********************************************************************************************************/
@@ -107,8 +137,8 @@ begin
         RAISE EXCEPTION 'Prix is null ';
 
     ELSE
-        INSERT INTO Reservation(id_resa, date_resa, prix, id_spec, id_payement, id_seances)
-        VALUES (id_resa, date_resa, prix, id_spec, id_payement, id_seances);
+        INSERT INTO Reservation(id_resa, date_resa, prix, id_spec, id_trans, id_seances)
+        VALUES (id_resa, date_resa, prix, id_spec, id_trans, id_seances);
     end if;
 end ;
 
@@ -118,18 +148,23 @@ $$ LANGUAGE plpgsql;
 
 --Creation d'une seances ---
 
-CREATE OR REPLACE FUNCTION creationSeances(id_seances INTEGER, date_seance TIMESTAMP, tarif INTEGER) returns void as
+CREATE OR REPLACE FUNCTION creationSeances(id_seance INTEGER, date_seance TIMESTAMP, tarif_abo INTEGER,
+                                           tarif_spec INTEGER, nb_places_dispo INTEGER) returns void as
 $$
 BEGIN
-    if id_seances is null or id_seances = 0 then
+    if id_seance is null or id_seance = 0 then
         RAISE EXCEPTION 'seances is null' ;
     elsif date_seance is NULL OR date_seance >= getDate() THEN
         RAISE EXCEPTION 'Date de la seance est valide ' ;
-    elsif tarif IS NULL THEN
+    elsif tarif_abo IS NULL THEN
         RAISE EXCEPTION 'Tarif is null';
+    elsif tarif_spec IS NULL THEN
+        RAISE EXCEPTION 'Tarif is null';
+    elsif nb_places_dispo is NULL then
+        raise exception 'nombre place est null';
     ELSE
-        INSERT INTO Seances(id_seances, date_seance, tarif, id_films, id_salles)
-        VALUES (id_seances, date_seance, tarif, id_films, id_salles);
+        INSERT INTO Seance(id_seance, date_seance, tarif_abo, tarif_spec, nb_places_dispo, id_salle)
+        VALUES (id_seance, id_seance, date_seance, tarif_abo, tarif_spec, nb_places_dispo, id_salle);
     end if;
 end;
 
@@ -140,19 +175,17 @@ $$ LANGUAGE plpgsql;
 
 --Creation d'une salle ---
 
-CREATE OR REPLACE FUNCTION creationSalles(id_salles INTEGER, nb_places_max INTEGER, ecrans INTEGER) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION creationSalles(id_salle INTEGER, nb_places_max INTEGER) RETURNS VOID AS
 $$
 BEGIN
-    IF id_salles is null or id_salles = 0 then
+    IF id_salle is null or id_salle = 0 then
         RAISE EXCEPTION 'salles is null';
     elsif nb_places_max IS NULL then
         RAISE EXCEPTION 'le nombre de place est null ';
-    elsif ecrans IS NULL THEN
-        RAISE EXCEPTION 'le nombre d"ecran est null';
 
     ELSE
-        INSERT INTO Salles(id_salles, ecrans, nb_places_max, id_cine)
-        VALUES (id_salles, ecrans, nb_places_max, id_cine);
+        INSERT INTO Salle(id_salle, nb_places_max, id_cine)
+        VALUES (id_salle, nb_places_max, id_cine);
 
     end if;
 end;
@@ -184,23 +217,20 @@ $$ LANGUAGE plpgsql;
 
 --- creation d'une transaction
 
-CREATE OR REPLACE FUNCTION creationPayement(id_payement INTEGER, date_payement INTEGER, prix_film INTEGER,
-                                            recette INTEGER, benefice INTEGER) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION creationTransaction(id_trans INTEGER, date_payement INTEGER,
+                                               payement FLOAT) RETURNS VOID AS
 $$
 BEGIN
-    IF id_payement is null or id_payement = 0 THEN
+    IF id_trans is null or id_trans = 0 THEN
         RAISE EXCEPTION 'payement is null' ;
     elsif date_payement IS NULL OR date_payement >= getDate() THEN
         RAISE EXCEPTION 'Date de payement est valide';
-    elsif prix_film IS NULL THEN
-        RAISE EXCEPTION 'Le prix du film is null';
-    elsif recette IS NULL THEN
-        RAISE EXCEPTION 'recette is null';
-    elsif benefice IS NULL THEN
-        RAISE EXCEPTION 'benefice is null';
+    elsif payement IS NULL THEN
+        RAISE EXCEPTION 'payement is null';
+
     ELSE
-        INSERT INTO Payement(id_payement, date_payement, prix_film, recette, benefice, id_resa)
-        VALUES (id_payement, date_payement, prix_film, recette, benefice, id_resa);
+        INSERT INTO Transaction(id_trans, date_payement, payement, id_resa)
+        VALUES (id_trans, date_payement, payement, id_resa);
     end if;
 end;
 $$ LANGUAGE plpgsql;
@@ -209,13 +239,15 @@ $$ LANGUAGE plpgsql;
 
 --creation Distributeur--
 
-CREATE OR REPLACE FUNCTION creationDistributeur(id_distri INTEGER) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION creationDistributeur(id_distri INTEGER, nom VARCHAR(50)) RETURNS VOID AS
 $$
 BEGIN
     if id_distri is null or id_distri = 0 then
         raise exception 'distributeur is null';
+    elsif nom is null or nom = ' ' then
+        raise exception 'nom is null' ;
     ELSE
-        INSERT INTO Distributeurs(id_distri) VALUES (id_distri);
+        INSERT INTO Distributeur(id_distri, nom) VALUES (id_distri, nom);
     end if;
 
 end;
@@ -227,30 +259,93 @@ $$ LANGUAGE plpgsql;
 --creation Programmateur--
 
 
-CREATE OR REPLACE FUNCTION creationProgrammateur(id_prog INTEGER) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION creationProgrammateur(id_prog INTEGER, nom varchar(255)) RETURNS VOID AS
 $$
 BEGIN
     if id_prog is null or id_prog = 0 then
-        raise exception 'distributeur is null';
+        raise exception 'programmateur is null';
+    elsif nom is null or nom = '' then
+        raise exception 'nom is null';
     ELSE
-        INSERT INTO Programmateurs(id_prog) VALUES (id_prog);
+        INSERT INTO Programmateur(id_prog, nom) VALUES (id_prog, nom);
     end if;
 
 end;
 $$ LANGUAGE plpgsql;
 
 
+/***********************************************************************************************************/
+
+----creation d'un contrat de diffusion  -----
+
+create or replace function creationContrat_Distribution(contrat varchar, montant INTEGER, licence text) returns void as
+$$
+begin
+    if contrat is null or contrat = '' then
+        raise exception 'contrat is null';
+    elsif montant is null or montant = 0 then
+        raise exception 'montant is null';
+    elsif licence is null or licence = '' then
+        raise exception 'licence is null';
+    ELSE
+        INSERT INTO contrat_de_diffusion(contrat, montant, licence, id_prog, id_dist)
+        VALUES (contrat, montant, licence, id_prog, id_dist);
+    end if;
+end;
+$$ LANGUAGE plpgsql;
+
+
+/***********************************************************************************************************/
+
+----creation  Archive --
+
+create or replace function creationArchive(recette integer, benefice INTEGER, date timestamp) returns void as
+$$
+begin
+    if recette is null then
+        raise exception 'contrat is null';
+    elsif benefice is null then
+        raise exception 'montant is null';
+    elsif date is null or date >= getDate() then
+        raise exception 'date de larchivage is bon';
+    ELSE
+        INSERT INTO archivage(recette, benefice, date) VALUES (recette, benefice, date);
+    end if;
+
+end;
+$$ LANGUAGE plpgsql;
 
 /***********************************************************************************************************/
 
 
+--creation d'un billet
+create or replace function creationBillet(id_billet integer, numero_billet INTEGER, prix_billet float) returns void as
+$$
+begin
+    if id_billet is null or id_billet = 0 then
+        raise exception 'billet est null';
+    elsif numero_billet is null then
+        raise exception 'numero de billet est null' ;
+    elsif prix_billet is null then
+        raise exception 'prix du billet est null';
+    ELSE
+        INSERT INTO Billet(id_billet, numero_billet, prix_billet) VALUES (id_billet, numero_billet, prix_billet);
+    end if;
+end;
+$$ LANGUAGE plpgsql;
+
+
+/***********************************************************************************************************/
+
 -----  Ajout d'une journée a la table Date -----
 
 
-CREATE OR REPLACE FUNCTION addOneDay() RETURNS VOId AS
+CREATE OR REPLACE FUNCTION addOneDay() RETURNS void AS
 $$
 BEGIN
-    UPDATE Date SET date_actuelle = getDate() + interval '1 day' where date_actuelle = getDate();
+    UPDATE Date
+    SET date_actuelle = getDate() + interval '1 day'
+    where date_actuelle = getDate();
 end;
 $$ LANGUAGE plpgsql;
 
@@ -259,7 +354,9 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION addOneWeek() RETURNS VOId AS
 $$
 BEGIN
-    UPDATE Date SET date_actuelle = getDate() + interval '1 week' where date_actuelle = getDate();
+    UPDATE Date
+    SET date_actuelle = getDate() + interval '1 week'
+    where date_actuelle = getDate();
 end;
 $$ LANGUAGE plpgsql;
 
@@ -268,11 +365,62 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION addOneMonth() RETURNS VOId AS
 $$
 BEGIN
-    UPDATE Date SET date_actuelle = getDate() + interval '1 month ' where date_actuelle = getDate();
+    UPDATE Date
+    SET date_actuelle = getDate() + interval '1 month '
+    where date_actuelle = getDate();
 end;
+$$ LANGUAGE plpgsql;
+
+
+
+/***********************************************************************************************************/
+---    verifier le sexe des abonnes    ---
+
+
+CREATE TRIGGER t_sexe_abonne
+    BEFORE INSERT
+    ON abonne
+    FOR EACH ROW
+EXECUTE PROCEDURE check_sexe_abonne();
+
+CREATE FUNCTION check_sexe_abonne() RETURNS trigger AS
+$$
+BEGIN
+    IF NEW.sexe != 'M' AND NEW.sexe != 'F' THEN
+        RETURN NULL;
+    END IF;
+END;
 $$ LANGUAGE plpgsql;
 
 
 /***********************************************************************************************************/
 
-CREATE OR REPLACE FUNCTION achatBillet ()
+    CREATE OR REPLACE FUNCTION achatBillet() RETURNS VOID AS
+$$
+BEGIN
+end;
+$$ LANGUAGE plpgsql;
+
+/***********************************************************************************************************/
+CREATE OR REPLACE FUNCTION inscriptionAbonnes() RETURNS VOID AS
+$$
+BEGIN
+
+
+end;
+
+$$ LANGUAGE plpgsql;
+
+
+/***********************************************************************************************************/
+
+
+CREATE OR REPLACE FUNCTION reservation() RETURNS TRIGGER AS
+$$
+
+BEGIN
+
+end;
+$$ LANGUAGE plpgqsql;
+
+
