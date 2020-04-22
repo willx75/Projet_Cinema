@@ -1,9 +1,8 @@
 DROP FUNCTION IF EXISTS getDate();
 DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer);
-DROP FUNCTION IF EXISTS creationSpectateurs(id_spec INTEGER, age int, solde int);
-DROP FUNCTION IF EXISTS creationAbonne(nom varchar, prenom varchar, email varchar);
-DROP FUNCTION IF EXISTS creationReservation(date_resa timestamp);
-DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, quantite FLOAT);
+DROP FUNCTION IF EXISTS creationSpectateurs(id_spec INTEGER, solde int);
+DROP FUNCTION IF EXISTS creationAbonne(pseudo varchar, nom varchar, prenom varchar, email varchar, age integer, type_abo varchar);
+DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT);
 DROP FUNCTION IF EXISTS creationProgrammateur(id_prog INTEGER, nom varchar, solde FLOAT);
 DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar, vente boolean);
 DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant_contrat FLOAT, licence text, date_signature TIMESTAMP);
@@ -13,22 +12,25 @@ DROP FUNCTION IF EXISTS addOneDay();
 DROP FUNCTION IF EXISTS addOneWeek();
 DROP FUNCTION IF EXISTS addOneMonth();
 
---inscription --
 
+--inscription --
 DROP FUNCTION IF EXISTS spectateurExiste(id INTEGER);
 DROP FUNCTION IF EXISTS est_inscrit(varchar);
 DROP FUNCTION IF EXISTS unsubscribeAbonne(varchar, varchar);
 DROP FUNCTION IF EXISTS inscriptionAbonne(int, varchar, varchar);
+
+
+--reservation --
 DROP FUNCTION IF EXISTS reserve(id_spe integer, id_sea integer);
 DROP FUNCTION IF EXISTS annul_reservation(id_spe integer, id_sea integer);
 DROP FUNCTION IF EXISTS check_nb_resa(id_spe integer);
+DROP FUNCTION IF EXISTS est_reserve(id_spe integer);
+
+
 DROP FUNCTION IF EXISTS getNbPlace_total_vente(id_ticket integer);
 DROP FUNCTION IF EXISTS supp_billet_acheter(integer);
 DROP FUNCTION IF EXISTS nb_place_disponible(id integer);
-
-DROP FUNCTION IF EXISTS est_reserve(id_spe integer);
-
----Transaction
+--transaction --
 DROP FUNCTION IF EXISTS get_solde_spec(int);
 DROP FUNCTION IF EXISTS get_solde_programmateur(int);
 
@@ -91,47 +93,22 @@ $$ LANGUAGE plpgsql;
 
 --Creation d'un spectateurs ---
 
-create or replace function creationSpectateurs(id_spec INTEGER, age int, solde int) returns void as
+create or replace function creationSpectateurs(id_spec INTEGER, solde int) returns void as
 $$
 begin
     if id_spec is null or id_spec = 0 then
         raise EXCEPTION 'spectateur is null' ;
-    elsif age is null then
-        raise exception 'age is null' ;
+
     elsif solde is null then
         raise exception 'age is null' ;
 
     ELSE
-        INSERT INTO Spectateur(id_spec, age, solde_spec)
-        VALUES (id_spec, age, solde);
+        INSERT INTO Spectateur(id_spec, solde_spec)
+        VALUES (id_spec, solde);
     end if;
 end;
 $$ LANGUAGE plpgsql;
 
-
-/***********************************************************************************************************/
-
---creation d'un abonne (pas sur encore revoir le boolean)
-
-CREATE OR REPLACE function creationAbonne(nom varchar, prenom varchar, email varchar) returns void as
-$$
-
-BEGIN
-
-    if nom is null or nom = ' ' then
-        raise exception 'nom is null ';
-    elsif prenom is null or prenom = ' ' then
-        raise exception 'prenom is null ';
-    elsif email is null or email = ' ' then
-        raise exception 'prenom is null ';
-
-    ELSE
-        insert into abonne(id_spec, age, solde_spec, nom, prenom, email)
-        VALUES (id_spec, age, solde_spec, nom, prenom, email);
-    end if;
-end;
-
-$$ LANGUAGE plpgsql;
 
 
 /***********************************************************************************************************/
@@ -146,8 +123,8 @@ begin
         RAISE EXCEPTION 'Date de reservation est valide';
 
     ELSE
-        INSERT INTO Reservation(id_spec, date_resa, id_seance)
-        VALUES (id_spec, date_resa, id_seance);
+        INSERT INTO Reservation(date_resa)
+        VALUES (date_resa);
     end if;
 end ;
 
@@ -170,8 +147,8 @@ BEGIN
     elsif nb_vendu is NULL then
         raise exception 'nombre place est null';
     ELSE
-        INSERT INTO Seance(id_seance, date_seance, nb_places_max, nb_place_vendu, id_film, id_billet)
-        VALUES (id_seance, date_seance, nb_max, nb_vendu, id_film, id_billet);
+        INSERT INTO Seance(id_seance, date_seance, nb_places_max, nb_places_vendu)
+        VALUES (id_seance, date_seance, nb_max, nb_vendu);
     end if;
 end;
 
@@ -183,19 +160,19 @@ $$ LANGUAGE plpgsql;
 --- creation d'une transaction
 
 CREATE OR REPLACE FUNCTION creationTransaction(id_trans INTEGER, date_payement timestamp,
-                                               quantite FLOAT) RETURNS VOID AS
+                                               montant_trans FLOAT) RETURNS VOID AS
 $$
 BEGIN
     IF id_trans is null or id_trans = 0 THEN
         RAISE EXCEPTION 'payement is null' ;
     elsif date_payement IS NULL OR date_payement >= getDate() THEN
         RAISE EXCEPTION 'Date de payement est valide';
-    elsif quantite IS NULL THEN
+    elsif montant_trans IS NULL THEN
         RAISE EXCEPTION 'quantité is null';
 
     ELSE
-        INSERT INTO Transaction(id_trans, date_payement, quantité, id_seance)
-        VALUES (id_trans, date_payement, quantité, id_seance);
+        INSERT INTO Transaction(id_trans, date_payement, montant_trans)
+        VALUES (id_trans, date_payement, montant_trans);
     end if;
 end;
 $$ LANGUAGE plpgsql;
@@ -337,7 +314,36 @@ $$ LANGUAGE plpgsql;
 
 /***********************************************************************************************************/
 
+
 /***********************************************************************************************************/
+
+--creation d'un abonne
+CREATE OR REPLACE function creationAbonne(pseudo varchar, nom varchar, prenom varchar, sexe varchar, email varchar,
+                                          type_abo varchar) returns void as
+$$
+
+BEGIN
+    if pseudo is null or pseudo = ' ' then
+        raise exception 'pseudo is null';
+
+    elsif nom is null or nom = ' ' then
+        raise exception 'nom is null ';
+    elsif prenom is null or prenom = ' ' then
+        raise exception 'prenom is null ';
+    elsif sexe is null or sexe = '' then
+        raise exception 'sexe is null';
+    elsif type_abo is null or type_abo = '' then
+        raise exception 'type abo is null';
+    elsif email is null or email = ' ' then
+        raise exception 'prenom is null ';
+
+    ELSE
+        insert into abonne(solde_spec, pseudo, nom, prenom, sexe, age, email, type_abo)
+        VALUES (100, pseudo, nom, prenom, sexe, age, email, type_abo);
+    end if;
+end;
+
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION spectateurExiste(id INTEGER) RETURNS BOOLEAN AS
 $$
@@ -395,31 +401,29 @@ $$ language plpgsql;
 --RESERVATION
 
 --verification de la reservation --
-/**
+
 create or replace function est_reserve(id_spe integer) returns boolean as
 $$
 begin
 
-    if exists(select 1 from reservation where reservation.id_seance = id_spe)
+    if exists(select 1 from reservation where reservation.fk_seance = id_spe)
     then
-        raise notice 'deja reserve';
+        raise notice 'Labo a deja reservé pour cette seance ';
         return false;
     else
         return true ;
     end if;
 end;
 $$ language plpgsql;
-**/
 
---- check me ,pbre de reservaton qu'un spectateur peut faire inferieure ou egale à 2
-
+--- Le nombre de reservation qu'un abo peut faire est limité a 2
 create or replace function check_nb_resa(id_spe integer) returns boolean as
 $$
 declare
     nbres boolean ;
 
 begin
-    select count(*) <= 2 into nbres from reservation where id_spec = id_spe;
+    select count(*) <= 2 into nbres from reservation where fk_spec = id_spe;
     if nbres is false
     then
         raise exception 'vous avez deja effectué une reservation';
@@ -429,10 +433,78 @@ end;
 $$ language plpgsql;
 
 
+---FONCTION RESERVATION
 create or replace function reserve(id_spe integer, id_sea integer) returns void as
 $$
 begin
     insert into reservation values (id_spe, id_sea);
+end;
+$$ language plpgsql;
+
+create or replace function seance_existe(id integer) returns boolean as
+$$
+begin
+    if exists(select 1 from seance where seance.id_seance = id) then
+        return true;
+    else
+        raise exception 'Cette seance nexiste pas ';
+        return false;
+    end if;
+end;
+$$ language plpgsql;
+
+create or replace function check_reservation() returns trigger as
+$$
+begin
+    if (seance_existe(new.fk_seance) is false) or
+       (spectateurexiste(new.fk_spec) is false) or
+       (est_inscrit(new.fk_spec) is false) or
+       (est_reserve(new.fk_spec) is false) or
+       (check_type_abo(new.fk_spec) is false) or
+       (check_nb_resa(new.fk_spec) is false)
+    then
+        return null ;
+    else
+        return new;
+    end if;
+end;
+
+$$ language plpgsql;
+
+
+create trigger before_insert_reservation
+    before insert
+    on reservation
+    for each row
+execute procedure check_reservation();
+
+create or replace function get_type_abo(id_spe integer) returns varchar as
+$$
+declare
+    forfait varchar;
+begin
+
+    select type_abo into forfait from abonne where id_spec = id_spe;
+    return forfait;
+
+end;
+$$ language plpgsql;
+
+
+create or replace function check_type_abo(id_spe integer) returns boolean as
+$$
+begin
+    if (get_type_abo(id_spe) = 'Abonnement -26') then
+        return true ;
+    elsif (get_type_abo(id_spe) = 'Abonnement +26') then
+        return true ;
+    elsif (get_type_abo(id_spe) = 'Etudiant') then
+        return true ;
+    elsif (get_type_abo(id_spe) = 'Comite Entreprise') then
+        return true ;
+    else
+        return false ;
+    end if;
 end;
 $$ language plpgsql;
 
@@ -441,7 +513,7 @@ $$ language plpgsql;
 create or replace function annul_reservation(id_spe integer, id_sea integer) returns void as
 $$
 begin
-    delete from reservation where id_spec = id_spe and id_seance = id_sea ;
+    delete from reservation where fk_spec = id_spe and fk_seance = id_sea ;
 end;
 
 $$ language plpgsql;
@@ -461,7 +533,7 @@ $$
 
 begin
 
-    SELECT sum(nb_places_max - nb_place_vendu) FROM seance where id_seance = id;
+    SELECT sum(nb_places_max - nb_places_vendu) FROM seance where id_seance = id;
 
 
 end;
@@ -473,12 +545,25 @@ create or replace function get_solde_spec() returns trigger as
 $$
 declare
     res integer ;
-begin
+BEGIN
 
-    select solde_spec into res from spectateur where id_spec = $1;
-    return res;
+    SELECT solde_spec
+    INTO res
+    FROM spectateur
+    WHERE new.trans_spec = id_spec;
 
-end;
+    IF 100 <= (SELECT montant_trans
+               FROM transaction
+               WHERE trans_spec = new.trans_spec) + new.montant_trans
+    THEN
+        RAISE exception 'Le solde du spectateur est insuffisant';
+    ELSE
+        UPDATE spectateur
+        SET solde_spec = (res - new.montant_trans)
+        WHERE id_spec = new.trans_spec;
+    end if;
+    RETURN res;
+END;
 $$ language plpgsql;
 
 
@@ -533,13 +618,13 @@ end;
 $$ language plpgsql;
 
 
-create or replace function supp_billet_acheter(integer) returns void as
+/**create or replace function supp_billet_acheter(integer) returns void as
 $$
 begin
     delete from seance where id_billet = $1;
 end;
 $$ language plpgsql;
-
+**/
 
 /***********************************************************************************************************/
 /**
@@ -556,7 +641,6 @@ $$ language plpgsql;
 **/
 
 
-/**
 ---    verifier le sexe des abonnes    ---
 
 CREATE FUNCTION check_sexe_abonne() RETURNS trigger AS
@@ -574,5 +658,17 @@ CREATE TRIGGER t_sexe_abonne
     FOR EACH ROW
 EXECUTE PROCEDURE check_sexe_abonne();
 
-**/
 
+
+create or replace function date_reservation() returns trigger as
+$$
+begin
+    update reservation set date_resa= getDate() where fk_seance = new.fk_seance;
+end;
+$$ language plpgsql;
+
+create trigger after_insert_reservation
+    after insert
+    on reservation
+    for each row
+execute procedure date_reservation();

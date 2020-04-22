@@ -32,7 +32,6 @@ CREATE TABLE Film
     langue      VARCHAR(50)  NOT NULL,
     synopsis    text         NOT NULL,
     prix_film   FLOAT        NOT NULL,
-
     id_distri   INTEGER      not null REFERENCES Distributeur (id_distri)
 );
 /**********************************************************************************************************************/
@@ -40,19 +39,10 @@ CREATE TABLE Film
 create table Spectateur
 (
     id_spec    SERIAL PRIMARY KEY,
-    age        INTEGER NOT NULL,
     solde_spec INTEGER NOT NULL
 
 );
-/**********************************************************************************************************************/
 
-create table Billet
-(
-    id_billet     SERIAL PRIMARY KEY,
-    numero_billet INTEGER NOT NULL,
-    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),-- si l'user est un abonne alors le prix du billet aura une reduction sinon prix total 100%
-    vendu         boolean Not null default false
-);
 
 /**********************************************************************************************************************/
 
@@ -60,11 +50,22 @@ create table Seance
 (
     id_seance       SERIAL PRIMARY KEY,
     date_seance     TIMESTAMP NOT NULL,
-    nb_places_dispo INTEGER   NOT NULL,
+    nb_places_vendu INTEGER   NOT NULL,
+    nb_places_max INTEGER   NOT NULL,
+    id_film         INTEGER   NOT NULL REFERENCES Film (id_film)
 
-    id_film         INTEGER   NOT NULL REFERENCES Film (id_film),
-    id_billet       INTEGER   NOT NULL REFERENCES Billet (id_billet)
+);
 
+
+/**********************************************************************************************************************/
+
+create table Billet
+(
+    id_billet     SERIAL PRIMARY KEY,
+    numero_billet INTEGER NOT NULL,
+    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),-- si l'user est un abonne alors le prix du billet aura une reduction sinon prix total 100%
+    vendu         boolean Not null default false,
+    fk_seance     INTEGER NOT NULL REFERENCES Seance (id_seance)
 );
 
 /**********************************************************************************************************************/
@@ -74,15 +75,10 @@ create table Transaction
     id_trans      SERIAL PRIMARY KEY,
     trans_spec    INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
     date_payement timestamp NOT NULL,
-    quantité      INTEGER   NOT NULL,
+    montant_trans      INTEGER   NOT NULL,
     id_seance     INTEGER   NOT NULL REFERENCES Seance (id_seance)
 
 );
-
-
-
-
-
 
 
 /**********************************************************************************************************************/
@@ -92,7 +88,6 @@ create table Programmateur
     id_prog SERIAL PRIMARY KEY,
     nom     VARCHAR(50) NOT NULL,
     solde   float       not null check ( solde > 0 ),
-
     id_spec INTEGER     NOT NULL REFERENCES Spectateur (id_spec)
 );
 
@@ -101,12 +96,13 @@ create table Programmateur
 
 create table Abonne
 (
-    id_abo   SERIAL PRIMARY KEY,
+    pseudo   VARCHAR PRIMARY KEY,
     nom      VARCHAR(50)  NOT NULL,
     prenom   VARCHAR(50)  NOT NULL,
-    sexe     VARCHAR(50)  NOT NULL,
+    sexe     VARCHAR(2)  NOT NULL,
+    age      INTEGER      NOT NULL check (age >= 16),
     email    VARCHAR(255) NOT NULL,
-    type_abo varchar(255) NOT NULL -- true = abonnement -26 ans ilimité false = abonnement +26 ans
+    type_abo varchar(255) NOT NULL
 ) INHERITS (Spectateur);
 
 
@@ -138,7 +134,6 @@ create table Message
     id_message  SERIAL PRIMARY KEY,
     expediteur  VARCHAR   NOT NULL,
     date_envoie TIMESTAMP NOT NULL,
-
     id_spec     INTEGER   NOT NULL REFERENCES Spectateur (id_spec)
 );
 
@@ -147,11 +142,11 @@ create table Message
 
 create table Reservation
 (
-    id_resa   SERIAL PRIMARY KEY,
-    date_resa timestamp NOT NULL,
-    type_resa boolean   not null, -- true si abo false sinon
+    fk_spec   INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
+    fk_seance INTEGER   NOT NULL REFERENCES Seance (id_seance),
+    PRIMARY KEY (fk_spec, fk_seance),
+    date_resa timestamp NOT NULL
 
-    id_spec   INTEGER   NOT NULL REFERENCES Spectateur (id_spec)
 );
 
 /**********************************************************************************************************************/
