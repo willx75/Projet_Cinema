@@ -2,7 +2,7 @@ DROP FUNCTION IF EXISTS getDate();
 DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer);
 DROP FUNCTION IF EXISTS creationSpectateurs(id_spec INTEGER, solde int);
 DROP FUNCTION IF EXISTS creationAbonne(pseudo varchar, nom varchar, prenom varchar, email varchar, age integer, type_abo varchar);
-DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT);
+DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT, quantite integer);
 DROP FUNCTION IF EXISTS creationProgrammateur(id_prog INTEGER, nom varchar, solde FLOAT);
 DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar, vente boolean);
 DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant_contrat FLOAT, licence text, date_signature TIMESTAMP);
@@ -33,6 +33,7 @@ DROP FUNCTION IF EXISTS nb_place_disponible(id integer);
 --transaction --
 DROP FUNCTION IF EXISTS get_solde_spec(int);
 DROP FUNCTION IF EXISTS get_solde_programmateur(int);
+DROP TRIGGER IF EXISTS after_insert_achat ON transaction;
 
 --DROP TRIGGER IF EXISTS get_solde_spectateur ON Transaction;
 --DROP TRIGGER IF EXISTS check_solde_prog ON transaction;
@@ -160,7 +161,7 @@ $$ LANGUAGE plpgsql;
 --- creation d'une transaction
 
 CREATE OR REPLACE FUNCTION creationTransaction(id_trans INTEGER, date_payement timestamp,
-                                               montant_trans FLOAT) RETURNS VOID AS
+                                               montant_trans FLOAT, quantite integer) RETURNS VOID AS
 $$
 BEGIN
     IF id_trans is null or id_trans = 0 THEN
@@ -168,11 +169,13 @@ BEGIN
     elsif date_payement IS NULL OR date_payement >= getDate() THEN
         RAISE EXCEPTION 'Date de payement est valide';
     elsif montant_trans IS NULL THEN
+        RAISE EXCEPTION 'montant de la transaction is null';
+    elsif quantite IS NULL THEN
         RAISE EXCEPTION 'quantité is null';
 
     ELSE
-        INSERT INTO Transaction(id_trans, date_payement, montant_trans)
-        VALUES (id_trans, date_payement, montant_trans);
+        INSERT INTO Transaction(id_trans, date_payement, montant_trans, quantite)
+        VALUES (id_trans, date_payement, montant_trans, quantite);
     end if;
 end;
 $$ LANGUAGE plpgsql;
@@ -591,7 +594,7 @@ $$ language plpgsql;
 /***********************************************************************************************************/
 
 
-create or replace function make_transaction(acheteur int, date_achat timestamp, qte integer) returns integer as
+/**create or replace function make_transaction(acheteur int, date_achat timestamp, qte integer) returns integer as
 $$
 declare
     int_tr integer;
@@ -616,7 +619,7 @@ begin
 end;
 
 $$ language plpgsql;
-
+**/
 
 /**create or replace function supp_billet_acheter(integer) returns void as
 $$
@@ -672,3 +675,28 @@ create trigger after_insert_reservation
     on reservation
     for each row
 execute procedure date_reservation();
+
+
+
+create or replace function achat_trigger() returns trigger as
+$$
+declare
+    msg_final text ;
+begin
+
+    msg_final := 'Vous avez recu une commande de' || new.quantite || 'montant dun valeur de ' || new.montant_trans ||
+                 'par : ' || new.trans_spec || '. Pour consulter la transaction, le numero est : ' || new.id_trans;
+
+    raise notice 'message finale : % ', msg_final;
+    insert into message(expediteur, date_envoie, id_spec, fk_trans, msg)
+    VALUES ('gestionnaire', getdate(), new.trans_spec, new.id_trans, msg_final);
+    return new;
+end;
+$$ language plpgsql;
+
+
+CREATE TRIGGER after_insert_achat
+after insert
+ON transaction
+FOR EACH ROW
+EXECUTE PROCEDURE achat_trigger();

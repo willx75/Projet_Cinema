@@ -51,7 +51,7 @@ create table Seance
     id_seance       SERIAL PRIMARY KEY,
     date_seance     TIMESTAMP NOT NULL,
     nb_places_vendu INTEGER   NOT NULL,
-    nb_places_max INTEGER   NOT NULL,
+    nb_places_max   INTEGER   NOT NULL,
     id_film         INTEGER   NOT NULL REFERENCES Film (id_film)
 
 );
@@ -74,9 +74,10 @@ create table Transaction
 (
     id_trans      SERIAL PRIMARY KEY,
     trans_spec    INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
+    id_seance     INTEGER   NOT NULL REFERENCES Seance (id_seance),
     date_payement timestamp NOT NULL,
-    montant_trans      INTEGER   NOT NULL,
-    id_seance     INTEGER   NOT NULL REFERENCES Seance (id_seance)
+    montant_trans INTEGER   NOT NULL,
+    quantite      integer   not null
 
 );
 
@@ -99,7 +100,7 @@ create table Abonne
     pseudo   VARCHAR PRIMARY KEY,
     nom      VARCHAR(50)  NOT NULL,
     prenom   VARCHAR(50)  NOT NULL,
-    sexe     VARCHAR(2)  NOT NULL,
+    sexe     VARCHAR(2)   NOT NULL,
     age      INTEGER      NOT NULL check (age >= 16),
     email    VARCHAR(255) NOT NULL,
     type_abo varchar(255) NOT NULL
@@ -134,7 +135,9 @@ create table Message
     id_message  SERIAL PRIMARY KEY,
     expediteur  VARCHAR   NOT NULL,
     date_envoie TIMESTAMP NOT NULL,
-    id_spec     INTEGER   NOT NULL REFERENCES Spectateur (id_spec)
+    msg text,
+    id_spec     INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
+    fk_trans    INTEGER NOT NULL REFERENCES Transaction(id_trans)
 );
 
 
