@@ -56,18 +56,6 @@ create table Seance
 
 );
 
-
-/**********************************************************************************************************************/
-
-create table Billet
-(
-    id_billet     SERIAL PRIMARY KEY,
-    numero_billet INTEGER NOT NULL,
-    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),-- si l'user est un abonne alors le prix du billet aura une reduction sinon prix total 100%
-    vendu         boolean Not null default false,
-    fk_seance     INTEGER NOT NULL REFERENCES Seance (id_seance)
-);
-
 /**********************************************************************************************************************/
 
 create table Transaction
@@ -81,15 +69,26 @@ create table Transaction
 
 );
 
+/**********************************************************************************************************************/
+
+create table Billet
+(
+    id_billet     SERIAL PRIMARY KEY,
+    numero_billet INTEGER NOT NULL,
+    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),-- si l'user est un abonne alors le prix du billet aura une reduction sinon prix total 100%
+    vendu         boolean Not null default false,
+    fk_seance     INTEGER NOT NULL REFERENCES Seance (id_seance),
+    fk_trans      INTEGER NOT NULL REFERENCES Transaction (id_trans)
+);
+
 
 /**********************************************************************************************************************/
 
 create table Programmateur
 (
-    id_prog SERIAL PRIMARY KEY,
-    nom     VARCHAR(50) NOT NULL,
-    solde   bigint       not null check ( solde > 0 ),
-    id_spec INTEGER     NOT NULL REFERENCES Spectateur (id_spec)
+    nom_prog VARCHAR(50) PRIMARY KEY,
+    solde    bigint  not null check ( solde > 0 ),
+    id_spec  INTEGER NOT NULL REFERENCES Spectateur (id_spec)
 );
 
 
@@ -116,7 +115,7 @@ create TABLE Contrat_De_Diffusion
     licence         text      not null,
     date_signature  TIMESTAMP NOT NULL,
 
-    id_prog         INTEGER   NOT NULL REFERENCES Programmateur (id_prog),
+    fk_prog         VARCHAR   NOT NULL REFERENCES Programmateur (nom_prog),
     id_dist         INTEGER   NOT NULL REFERENCES Distributeur (id_distri)
 
 );
@@ -136,7 +135,7 @@ create table Message
     expediteur  VARCHAR            NOT NULL,
     date_envoie TIMESTAMP          NOT NULL,
     msg         text,
-    id_spec     INTEGER            NOT NULL REFERENCES Spectateur (id_spec),
+    fk_abo      VARCHAR            NOT NULL REFERENCES Abonne (pseudo),
     fk_trans    INTEGER            NOT NULL REFERENCES Transaction (id_trans)
 );
 
@@ -154,3 +153,8 @@ create table Reservation
 
 /**********************************************************************************************************************/
 
+create table Gestionnaire
+(
+    type_frais varchar(50) primary key,
+    soldes     real not null default 0
+);
