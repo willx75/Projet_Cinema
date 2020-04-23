@@ -25,21 +25,21 @@ create table Distributeur
 
 CREATE TABLE Film
 (
-    id_film     INTEGER PRIMARY KEY,
+    id_film     SERIAL PRIMARY KEY,
     titre       VARCHAR(255) NOT NULL,
     genre       VARCHAR(255) NOT NULL,
     nationalite VARCHAR(50)  NOT NULL,
     langue      VARCHAR(50)  NOT NULL,
     synopsis    text         NOT NULL,
     prix_film   FLOAT        NOT NULL,
-    id_distri   INTEGER      not null REFERENCES Distributeur (id_distri)
+    id_distri   INTEGER REFERENCES Distributeur (id_distri)
 );
 /**********************************************************************************************************************/
 
 create table Spectateur
 (
     id_spec    SERIAL PRIMARY KEY,
-    solde_spec INTEGER NOT NULL
+    solde_spec INTEGER
 
 );
 
@@ -88,7 +88,7 @@ create table Programmateur
 (
     id_prog SERIAL PRIMARY KEY,
     nom     VARCHAR(50) NOT NULL,
-    solde   float       not null check ( solde > 0 ),
+    solde   bigint       not null check ( solde > 0 ),
     id_spec INTEGER     NOT NULL REFERENCES Spectateur (id_spec)
 );
 
@@ -132,12 +132,12 @@ create TABLE Date
 
 create table Message
 (
-    id_message  SERIAL PRIMARY KEY,
-    expediteur  VARCHAR   NOT NULL,
-    date_envoie TIMESTAMP NOT NULL,
-    msg text,
-    id_spec     INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
-    fk_trans    INTEGER NOT NULL REFERENCES Transaction(id_trans)
+    id_message  SERIAL PRIMARY KEY NOT NULL,
+    expediteur  VARCHAR            NOT NULL,
+    date_envoie TIMESTAMP          NOT NULL,
+    msg         text,
+    id_spec     INTEGER            NOT NULL REFERENCES Spectateur (id_spec),
+    fk_trans    INTEGER            NOT NULL REFERENCES Transaction (id_trans)
 );
 
 
