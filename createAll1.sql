@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS Message CASCADE;
+DROP TABLE IF EXISTS Billet CASCADE;
 DROP TABLE IF EXISTS Film CASCADE;
 DROP TABLE IF EXISTS Spectateur CASCADE;
 DROP TABLE IF EXISTS Abonne CASCADE;
@@ -8,8 +10,7 @@ DROP TABLE IF EXISTS Reservation CASCADE;
 DROP TABLE IF EXISTS Distributeur CASCADE;
 DROP TABLE IF EXISTS Contrat_De_Diffusion CASCADE;
 DROP TABLE IF EXISTS Date CASCADE;
-DROP TABLE IF EXISTS Billet CASCADE;
-DROP TABLE IF EXISTS Message CASCADE;
+DROP TABLE IF EXISTS Gestionnaire CASCADE;
 
 
 /**********************************************************************************************************************/
@@ -50,9 +51,9 @@ create table Seance
 (
     id_seance       SERIAL PRIMARY KEY,
     date_seance     TIMESTAMP NOT NULL,
-    nb_places_vendu INTEGER   NOT NULL,
-    nb_places_max   INTEGER   NOT NULL,
-    id_film         INTEGER   NOT NULL REFERENCES Film (id_film)
+    nb_places_vendu INTEGER,
+    nb_places_max   INTEGER,
+    id_film         INTEGER REFERENCES Film (id_film)
 
 );
 
@@ -147,7 +148,7 @@ create table Reservation
     fk_spec   INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
     fk_seance INTEGER   NOT NULL REFERENCES Seance (id_seance),
     PRIMARY KEY (fk_spec, fk_seance),
-    date_resa timestamp NOT NULL
+    date_resa timestamp
 
 );
 
