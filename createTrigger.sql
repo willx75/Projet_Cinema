@@ -1,8 +1,6 @@
 --reservation --
 DROP FUNCTION IF EXISTS get_billet_a_acheter(idseance integer, qte integer);
-DROP FUNCTION IF EXISTS annul_reservation(id_spe integer, id_sea integer) CASCADE;
 DROP FUNCTION IF EXISTS check_nb_resa(id_spe integer) CASCADE;
-DROP FUNCTION IF EXISTS check_reservation() cascade;
 --billet
 DROP FUNCTION IF EXISTS getNbPlace_total_vente(id_ticket integer) cascade;
 DROP FUNCTION IF EXISTS nb_place_disponible(id integer) cascade;
@@ -14,7 +12,10 @@ DROP FUNCTION IF EXISTS check_inscription() cascade;
 
 DROP TRIGGER IF EXISTS before_insert_abonne ON abonne cascade;
 
+DROP TRIGGER IF EXISTS before_add_billets ON billet;
 
+
+/***********************************************************************************************************/
 
 create or replace function check_inscription() returns trigger as
 $$
@@ -39,7 +40,6 @@ $$ language plpgsql;
 
 /***********************************************************************************************************/
 
-
 create or replace function date_reservation() returns trigger as
 $$
 begin
@@ -47,9 +47,10 @@ begin
 end;
 $$ language plpgsql;
 
+/***********************************************************************************************************/
 
 -------------------------------------------transaction------------------------------------------------------
-
+--ajout de messages apres chaque transaction
 create or replace function achat_trigger() returns trigger as
 $$
 declare
@@ -61,7 +62,7 @@ begin
 
     raise notice 'message finale : % ', msg_final;
     insert into message(expediteur, date_envoie, fk_abo, fk_trans, msg)
-    VALUES ('gestionnaire', getdate(), new.trans_spec, new.id_trans, msg_final);
+    VALUES ('gestionnaire', CURRENT_TIMESTAMP, new.trans_spec, new.id_trans, msg_final);
     return new;
 end;
 $$ language plpgsql;
@@ -104,21 +105,44 @@ begin
 end;
 
 $$ language plpgsql;
+/***********************************************************************************************************/
 
+-------------------------------------------billet------------------------------------------------------
 
+--Permet une vérification avant l’ajout d’un billet
+/**
+  a revoir cette fonction, l'update ne marche pas encore au niveau de l'insert
+ */
 
-create or replace function get_billet_a_acheter(idseance integer, qte integer) returns setof billet AS
+CREATE OR REPLACE function update_add_billet() returns trigger as
 $$
 declare
-    res billet%rowtype;
+    prix_max integer ;
+
 begin
-    for res in
-        select * from billet where fk_seance = idseance and vendu = false order by billet.numero_billet limit qte
-        LOOP
-            return next res;
-        end loop;
+
+    IF (tg_op = 'INSERT') then
+        select prix into prix_max from seance where id_seance = new.fk_seance;
+        IF (prix_max <= new.prix_billet)
+        THEN
+            Raise EXCEPTION 'le prix du billet ne respecte pas les conditions % , prix max conseille %', new.prix_billet,prix_max;
+        end if;
+        IF (get_nb_billet_par_seance(new.fk_seance)) <= 99 -- si on a pas atteint le nombre de 100 billets pour la seance
+        THEN
+            RAISE NOTICE 'billet ajouter %', new.numero_billet;
+            return NEW;
+        ELSE
+            RAISE EXCEPTION 'nombre de billets pour la seance dépassé, billet numero % refusé ' , new.id_billet;
+
+        end if;
+    ELSE
+        return null;
+    end if;
 end;
 $$ language plpgsql;
+
+
+
 
 /********************************************************************************************************/
 
@@ -159,3 +183,11 @@ create TRIGGER get_solde_spectateur
     on Transaction
     FOR EACH ROW
 EXECUTE PROCEDURE get_solde_spec();
+
+
+
+CREATE TRIGGER before_add_billets
+    before INSERT
+    ON billet
+    FOR EACH ROW
+EXECUTE PROCEDURE update_add_billet();

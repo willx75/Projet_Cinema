@@ -1,19 +1,21 @@
-DROP FUNCTION IF EXISTS getDate();
-DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer);
-DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT, quantite integer);
-DROP FUNCTION IF EXISTS creationProgrammateur(nom varchar, solde bigint);
-DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar, vente boolean);
-DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant_contrat FLOAT, licence text, date_signature TIMESTAMP);
-DROP FUNCTION IF EXISTS creationBillet(id_billet integer, numero_billet INTEGER, prix_billet float);
-DROP FUNCTION IF EXISTS creationMessage(id_message integer, expediteur varchar, date_envoi timestamp);
-DROP FUNCTION IF EXISTS creationseance(id_seance integer, date_seance timestamp);
-DROP FUNCTION IF EXISTS addOneDay();
-DROP FUNCTION IF EXISTS addOneWeek();
-DROP FUNCTION IF EXISTS addOneMonth();
+DROP FUNCTION IF EXISTS getDate() CASCADE;
+DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer) CASCADE;
+DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT, quantite integer) CASCADE;
+DROP FUNCTION IF EXISTS creationProgrammateur(nom varchar, solde bigint) CASCADE;
+DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar, vente boolean) CASCADE;
+DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant_contrat FLOAT, licence text, date_signature TIMESTAMP) CASCADE;
+DROP FUNCTION IF EXISTS creationBillet(id_billet integer, numero_billet INTEGER, prix_billet float) CASCADE;
+DROP FUNCTION IF EXISTS creationMessage(id_message integer, expediteur varchar, date_envoi timestamp) CASCADE;
+DROP FUNCTION IF EXISTS creationseance(id_seance integer, date_seance timestamp) CASCADE;
+DROP FUNCTION IF EXISTS addOneDay() CASCADE;
+DROP FUNCTION IF EXISTS addOneWeek() CASCADE;
+DROP FUNCTION IF EXISTS addOneMonth() CASCADE;
 DROP FUNCTION IF EXISTS seance_existe(id integer) cascade;
 DROP FUNCTION IF EXISTS est_reserve(id_spe integer) CASCADE;
 DROP FUNCTION IF EXISTS reserve(id_spe integer, id_sea integer) CASCADE;
 
+DROP FUNCTION IF EXISTS check_reservation() cascade;
+DROP FUNCTION IF EXISTS annul_reservation(id_spe integer, id_sea integer) CASCADE;
 
 --inscription --
 DROP FUNCTION IF EXISTS creationabonne(pseudo varchar, name varchar, pnom varchar, sexe varchar, age integer, mail varchar, typeabo varchar) CASCADE;
@@ -216,7 +218,7 @@ BEGIN
 end;
 $$ LANGUAGE plpgsql;
 
-
+/***********************************************************************************************************/
 
 --creation d'un abonee
 create or replace function creationAbonne(pseudo varchar, name varchar, pnom varchar, sexe varchar, age int,
@@ -245,12 +247,9 @@ begin
 end;
 $$ LANGUAGE plpgsql;
 
-
-
 /***********************************************************************************************************/
 
 -------------------------------------------inscription------------------------------------------------------
-
 
 CREATE OR REPLACE FUNCTION abonneExiste(id INTEGER) RETURNS BOOLEAN AS
 $$
@@ -264,8 +263,6 @@ BEGIN
 end;
 
 $$ LANGUAGE plpgsql;
-
-
 
 create or replace function est_inscrit(integer) returns boolean as
 $$
@@ -281,7 +278,6 @@ begin
     return res;
 end;
 $$ language plpgsql;
-
 
 
 create or replace function unsubscribeAbonne(varchar, varchar) returns void as
@@ -301,9 +297,6 @@ begin
     return _age;
 end;
 $$ language plpgsql;
-/***********************************************************************************************************/
-
-
 /***********************************************************************************************************/
 
 -------------------------------------------reservation------------------------------------------------------
@@ -330,7 +323,6 @@ create or replace function check_nb_resa(id_spe integer) returns boolean as
 $$
 declare
     nbres boolean ;
-
 begin
     select count(*) <= 2 into nbres from reservation where fk_spec = id_spe;
     if nbres is false
@@ -395,7 +387,6 @@ $$
 begin
     delete from reservation where fk_spec = id_spe and fk_seance = id_sea ;
 end;
-
 $$ language plpgsql;
 
 create or replace function check_reservation() returns trigger as
@@ -413,8 +404,11 @@ begin
         return new;
     end if;
 end;
-
 $$ language plpgsql;
+
+
+/***********************************************************************************************************/
+
 -------------------------------------------billet-----------------------------------------------------------
 
 create or replace function getNbPlace_total_vente(id_ticket integer) returns void as
@@ -437,30 +431,97 @@ end;
 $$ language plpgsql;
 
 
+--Fonction retournant les billets à acheter dans une seance
+create or replace function get_billet_a_acheter(idseance integer, qte integer) returns setof billet AS
+$$
+declare
+    res billet%rowtype;
+begin
+    for res in
+        select * from billet where fk_seance = idseance and vendu = false order by billet.numero_billet limit qte
+        LOOP
+            return next res;
+        end loop;
+end;
+$$ language plpgsql;
 
---- creation d'une transaction
-CREATE OR REPLACE FUNCTION creationTransaction(spectateur integer,
-                                               montant_trans bigint, quantite integer,
-                                               date_payement timestamp) RETURNS INTEGER AS
+
+
+create or replace function supprimer_billet_vendu(id integer) returns void as
+$$
+begin
+    delete from billet where fk_trans = id ;
+end;
+$$
+    language plpgsql;
+
+--apres rembourseement remise des bllets en ventes
+create or replace function remise_billet_en_vente(id integer) returns void as
+$$
+declare
+    res billet%rowtype;
+begin
+    raise notice 'remise billet en vente';
+    for res in select from billet where fk_trans = id
+        LOOP
+            update billet set fk_trans = null, vendu = false where fk_trans = id;
+            update seance set nb_places_max = nb_places_max + 1 where id_seance = res.fk_seance;
+        end loop;
+end;
+$$ language plpgsql;
+
+-- qui recupere le nombre de billet par seance
+create or replace function get_nb_billet_par_seance(id integer) returns integer as
 $$
 DECLARE
-    id_tr integer ;
+    res integer;
 BEGIN
-    if abonneexiste(spectateur) then
-        INSERT INTO Transaction(trans_spec, montant_trans, quantite, date_payement)
-        VALUES ($1, $2, $3, $4)
-        returning id_trans into id_tr;
-        if FOUND THEN
-            RAISE notice 'transaction numero %', id_tr;
-            return id_tr;
-        ELSE
-            RAISE EXCEPTION 'transaction impossible ';
-        end if;
+    SELECT into res count(*) from billet where fk_seance = id;
+    IF FOUND
+    THEN
+        return res ;
     ELSE
-        RAISE EXCEPTION 'labonne nexiste plus  ';
+        raise exception ' recuperer le nombre de billet est impossible pour la seance %', $1;
     END IF;
+END;
+$$ language plpgsql;
+
+---recupere la somme totale des billets que l'on a achetés
+CREATE OR REPLACE FUNCTION get_somme_billet(id integer, max integer) returns integer as
+$$
+declare
+    somme integer := 0 ;
+    res   billet%rowtype;
+
+begin
+    FOR res in
+        SELECT * from billet where fk_seance = id and vendu = false order by billet.numero_billet limit max
+        LOOP
+            somme := somme + res.prix_billet ;
+        end loop;
+    RETURN somme;
 end;
-$$ LANGUAGE plpgsql;
+$$ language plpgsql;
+
+
+--recuperer les billets achetés par un spectateur sous forme de string
+CREATE OR REPLACe function get_billet_acheter(idtrans integer) returns text as
+$$
+declare
+    ligne text;
+BEGIN
+    --on recupere les elements du tableau qu'on convertie en sting pour affichage
+    SELECT array_to_string(array(SELECT numero_billet into ligne from billet where fk_trans = idtrans), ',');
+    IF FOUND
+    THEN
+        RAISE EXCEPTION 'billet trouvé achat trigger :  % ', ligne ;
+    end if;
+    return ligne;
+end;
+$$ language plpgsql;
+
+
+--Fonction permettant l’achat de billets en fonction de l’ID d’une seance
 
 create or replace function achat_billet_from_seance(idseance integer, qte integer, acheteur text) returns void as
 $$
@@ -504,6 +565,33 @@ end;
 $$ language plpgsql;
 
 
+
+--- creation d'une transaction
+CREATE OR REPLACE FUNCTION creationTransaction(spectateur integer, montant_trans bigint, quantite integer,
+                                               date_payement timestamp) RETURNS INTEGER AS
+$$
+DECLARE
+    id_tr integer ;
+BEGIN
+    if abonneexiste(spectateur) then
+        INSERT INTO Transaction(trans_spec, montant_trans, quantite, date_payement)
+        VALUES ($1, $2, $3, $4)
+        returning id_trans = id_tr;
+        if FOUND THEN
+            RAISE notice 'transaction numero %', id_tr;
+            return id_tr;
+        ELSE
+
+            RAISE EXCEPTION 'transaction impossible ';
+        end if;
+    ELSE
+        RAISE EXCEPTION 'labonne nexiste plus  ';
+    END IF;
+end ;
+$$ LANGUAGE plpgsql;
+
+
+
 create or replace function virement_transaction_achat(integer, text, bigint) returns void as
 $$
 begin
@@ -522,6 +610,7 @@ begin
 
 end;
 $$ language plpgsql;
+
 
 
 

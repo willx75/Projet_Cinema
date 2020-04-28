@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS Film CASCADE;
 DROP TABLE IF EXISTS Spectateur CASCADE;
 DROP TABLE IF EXISTS Abonne CASCADE;
 DROP TABLE IF EXISTS Seance CASCADE;
+DROP TABLE IF EXISTS Salle CASCADE;
 DROP TABLE IF EXISTS Transaction CASCADE;
 DROP TABLE IF EXISTS Programmateur CASCADE;
 DROP TABLE IF EXISTS Reservation CASCADE;
@@ -51,6 +52,7 @@ create table Seance
 (
     id_seance       SERIAL PRIMARY KEY,
     date_seance     TIMESTAMP NOT NULL,
+    prix            integer,
     nb_places_vendu INTEGER,
     nb_places_max   INTEGER,
     id_film         INTEGER REFERENCES Film (id_film)
@@ -63,7 +65,6 @@ create table Transaction
 (
     id_trans      SERIAL PRIMARY KEY,
     trans_spec    INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
-    id_seance     INTEGER   NOT NULL REFERENCES Seance (id_seance),
     date_payement timestamp NOT NULL,
     montant_trans INTEGER   NOT NULL,
     quantite      integer   not null
@@ -76,7 +77,8 @@ create table Billet
 (
     id_billet     SERIAL PRIMARY KEY,
     numero_billet INTEGER NOT NULL,
-    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),-- si l'user est un abonne alors le prix du billet aura une reduction sinon prix total 100%
+    prix_billet   FLOAT   NOT NULL check ( prix_billet > 0 ),
+    qte_billet    integer not null default 1,
     vendu         boolean Not null default false,
     fk_seance     INTEGER NOT NULL REFERENCES Seance (id_seance),
     fk_trans      INTEGER NOT NULL REFERENCES Transaction (id_trans)
@@ -145,8 +147,8 @@ create table Message
 
 create table Reservation
 (
-    fk_spec   INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
-    fk_seance INTEGER   NOT NULL REFERENCES Seance (id_seance),
+    fk_spec   INTEGER NOT NULL REFERENCES Spectateur (id_spec),
+    fk_seance INTEGER NOT NULL REFERENCES Seance (id_seance),
     PRIMARY KEY (fk_spec, fk_seance),
     date_resa timestamp
 
