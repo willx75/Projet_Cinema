@@ -386,6 +386,7 @@ create or replace function annul_reservation(id_spe integer, id_sea integer) ret
 $$
 begin
     delete from reservation where fk_spec = id_spe and fk_seance = id_sea ;
+    raise notice 'reservation canceled' ;
 end;
 $$ language plpgsql;
 

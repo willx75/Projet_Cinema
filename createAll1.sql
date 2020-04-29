@@ -135,7 +135,7 @@ create TABLE Date
 create table Message
 (
     id_message  SERIAL PRIMARY KEY NOT NULL,
-    expediteur  VARCHAR            NOT NULL,
+    expediteur  VARCHAR            NOT NULL default 'gestionnaire',
     date_envoie TIMESTAMP          NOT NULL,
     msg         text,
     fk_abo      VARCHAR            NOT NULL REFERENCES Abonne (pseudo),

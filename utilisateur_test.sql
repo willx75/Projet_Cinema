@@ -38,7 +38,6 @@ select *from reservation;
 select reserve(1,1);
 select reserve(2,2);
 
-insert into transaction (id_trans, trans_spec, id_seance, date_payement, montant_trans, quantite) VALUES (1 , 30, 1,getdate(),22,1);
 
 select * from transaction ;
 select getdate();

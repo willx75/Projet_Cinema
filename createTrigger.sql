@@ -13,6 +13,7 @@ DROP FUNCTION IF EXISTS check_inscription() cascade;
 DROP TRIGGER IF EXISTS before_insert_abonne ON abonne cascade;
 
 DROP TRIGGER IF EXISTS before_add_billets ON billet;
+DROP TRIGGER IF EXISTS after_message_trigger ON message;
 
 
 /***********************************************************************************************************/
@@ -95,7 +96,6 @@ END;
 $$ language plpgsql;
 
 
-
 create or replace function get_solde_programmateur(varchar) returns integer as
 $$
 declare
@@ -113,14 +113,12 @@ $$ language plpgsql;
 /**
   a revoir cette fonction, l'update ne marche pas encore au niveau de l'insert
  */
-
 CREATE OR REPLACE function update_add_billet() returns trigger as
 $$
 declare
     prix_max integer ;
 
 begin
-
     IF (tg_op = 'INSERT') then
         select prix into prix_max from seance where id_seance = new.fk_seance;
         IF (prix_max <= new.prix_billet)
@@ -133,7 +131,6 @@ begin
             return NEW;
         ELSE
             RAISE EXCEPTION 'nombre de billets pour la seance dépassé, billet numero % refusé ' , new.id_billet;
-
         end if;
     ELSE
         return null;
@@ -142,21 +139,38 @@ end;
 $$ language plpgsql;
 
 
+/********************************************************************************************************/
+
+-------------------------------------------message------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION message_trigger() RETURNS trigger AS
+$$
+declare
+    msg_final text;
+begin
+
+    msg_final := new.fk_abo || ', vous avez un nouveau message de ' || new.expediteur;
+    raise notice '%',msg_final;
+    return new;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER after_message_trigger
+    after insert
+    ON message
+    FOR EACH ROW
+EXECUTE PROCEDURE message_trigger();
 
 
 /********************************************************************************************************/
 
-
 -------------trigger ---------
-
 
 create trigger before_insert_abonne
     before insert
     on abonne
     for each row
 execute procedure check_inscription();
-
-
 
 create trigger before_insert_reservation
     before insert
@@ -170,7 +184,6 @@ create trigger after_insert_reservation
     for each row
 execute procedure date_reservation();
 
-
 CREATE TRIGGER after_insert_achat
     after insert
     ON transaction
@@ -183,8 +196,6 @@ create TRIGGER get_solde_spectateur
     on Transaction
     FOR EACH ROW
 EXECUTE PROCEDURE get_solde_spec();
-
-
 
 CREATE TRIGGER before_add_billets
     before INSERT
