@@ -1,21 +1,3 @@
-DROP TABLE IF EXISTS Message CASCADE;
-DROP TABLE IF EXISTS Billet CASCADE;
-DROP TABLE IF EXISTS Film CASCADE;
-DROP TABLE IF EXISTS Spectateur CASCADE;
-DROP TABLE IF EXISTS Abonne CASCADE;
-DROP TABLE IF EXISTS Seance CASCADE;
-DROP TABLE IF EXISTS Salle CASCADE;
-DROP TABLE IF EXISTS Transaction CASCADE;
-DROP TABLE IF EXISTS Programmateur CASCADE;
-DROP TABLE IF EXISTS Reservation CASCADE;
-DROP TABLE IF EXISTS Distributeur CASCADE;
-DROP TABLE IF EXISTS Contrat_De_Diffusion CASCADE;
-DROP TABLE IF EXISTS Date CASCADE;
-DROP TABLE IF EXISTS Gestionnaire CASCADE;
-
-
-/**********************************************************************************************************************/
-
 create table Distributeur
 (
     id_distri SERIAL PRIMARY KEY,
@@ -32,7 +14,6 @@ CREATE TABLE Film
     genre       VARCHAR(255) NOT NULL,
     nationalite VARCHAR(50)  NOT NULL,
     langue      VARCHAR(50)  NOT NULL,
-    synopsis    text         NOT NULL,
     prix_film   FLOAT        NOT NULL,
     id_distri   INTEGER REFERENCES Distributeur (id_distri)
 );
@@ -40,9 +21,8 @@ CREATE TABLE Film
 
 create table Spectateur
 (
-    id_spec    SERIAL PRIMARY KEY,
+    id_spec    SERIAL PRIMARY KEY NOT NULL ,
     solde_spec INTEGER
-
 );
 
 
@@ -63,11 +43,11 @@ create table Seance
 
 create table Transaction
 (
-    id_trans      SERIAL PRIMARY KEY,
-    trans_spec    INTEGER   NOT NULL REFERENCES Spectateur (id_spec),
-    date_payement timestamp NOT NULL,
-    montant_trans INTEGER   NOT NULL,
-    quantite      integer   not null
+    id_trans      SERIAL PRIMARY KEY NOT NULL,
+    trans_spec    INTEGER            NOT NULL REFERENCES Abonne (id_abo),
+    date_payement timestamp          NOT NULL,
+    montant_trans INTEGER            NOT NULL,
+    quantite      integer            not null
 
 );
 
@@ -84,22 +64,11 @@ create table Billet
     fk_trans      INTEGER NOT NULL REFERENCES Transaction (id_trans)
 );
 
-
-/**********************************************************************************************************************/
-
-create table Programmateur
-(
-    nom_prog VARCHAR(50) PRIMARY KEY,
-    solde    bigint  not null check ( solde > 0 ),
-    id_spec  INTEGER NOT NULL REFERENCES Spectateur (id_spec)
-);
-
-
 /**********************************************************************************************************************/
 
 create table Abonne
 (
-    pseudo   VARCHAR PRIMARY KEY,
+    id_abo   INTEGER PRIMARY KEY NULL ,
     nom      VARCHAR(50)  NOT NULL,
     prenom   VARCHAR(50)  NOT NULL,
     sexe     VARCHAR(2)   NOT NULL,
@@ -108,6 +77,14 @@ create table Abonne
     type_abo varchar(255) NOT NULL
 ) INHERITS (Spectateur);
 
+
+/**********************************************************************************************************************/
+
+create table Programmateur
+(
+    nom_prog    VARCHAR(50) PRIMARY KEY,
+    fk_abo_prog INTEGER NOT NULL REFERENCES Abonne (id_abo)
+);
 
 /**********************************************************************************************************************/
 
@@ -138,7 +115,7 @@ create table Message
     expediteur  VARCHAR            NOT NULL default 'gestionnaire',
     date_envoie TIMESTAMP          NOT NULL,
     msg         text,
-    fk_abo      VARCHAR            NOT NULL REFERENCES Abonne (pseudo),
+    fk_abo_mess INTEGER            NOT NULL REFERENCES Abonne (id_abo),
     fk_trans    INTEGER            NOT NULL REFERENCES Transaction (id_trans)
 );
 
@@ -147,9 +124,9 @@ create table Message
 
 create table Reservation
 (
-    fk_spec   INTEGER NOT NULL REFERENCES Spectateur (id_spec),
+    fk_abo    INTEGER NOT NULL REFERENCES Abonne (id_abo),
     fk_seance INTEGER NOT NULL REFERENCES Seance (id_seance),
-    PRIMARY KEY (fk_spec, fk_seance),
+    PRIMARY KEY (fk_abo, fk_seance),
     date_resa timestamp
 
 );

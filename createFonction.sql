@@ -1,7 +1,7 @@
 DROP FUNCTION IF EXISTS getDate() CASCADE;
 DROP FUNCTION IF EXISTS creationFilm(id_films INTEGER, titre varchar, genre varchar, nationalite varchar, langues varchar, synopsis varchar, prix_film integer) CASCADE;
-DROP FUNCTION IF EXISTS creationTransaction(id_trans INTEGER, date_payement timestamp, montant_trans FLOAT, quantite integer) CASCADE;
-DROP FUNCTION IF EXISTS creationProgrammateur(nom varchar, solde bigint) CASCADE;
+DROP FUNCTION IF EXISTS creationtransaction(abonne integer, montant_trans bigint, quantite integer, date_payement timestamp) CASCADE ;
+DROP FUNCTION IF EXISTS creationprogrammateur(nom text, solde bigint) CASCADE;
 DROP FUNCTION IF EXISTS creationDistributeur(id_distri INTEGER, nom varchar, vente boolean) CASCADE;
 DROP FUNCTION IF EXISTS creationContrat_Distribution(contrat varchar, montant_contrat FLOAT, licence text, date_signature TIMESTAMP) CASCADE;
 DROP FUNCTION IF EXISTS creationBillet(id_billet integer, numero_billet INTEGER, prix_billet float) CASCADE;
@@ -13,17 +13,16 @@ DROP FUNCTION IF EXISTS addOneMonth() CASCADE;
 DROP FUNCTION IF EXISTS seance_existe(id integer) cascade;
 DROP FUNCTION IF EXISTS est_reserve(id_spe integer) CASCADE;
 DROP FUNCTION IF EXISTS reserve(id_spe integer, id_sea integer) CASCADE;
-
 DROP FUNCTION IF EXISTS check_reservation() cascade;
 DROP FUNCTION IF EXISTS annul_reservation(id_spe integer, id_sea integer) CASCADE;
-
 --inscription --
-DROP FUNCTION IF EXISTS creationabonne(pseudo varchar, name varchar, pnom varchar, sexe varchar, age integer, mail varchar, typeabo varchar) CASCADE;
+DROP FUNCTION IF EXISTS creationabonne(id_abo integer, name varchar, pnom varchar, sexe varchar, age integer, mail varchar, typeabo varchar) CASCADE;
 DROP FUNCTION IF EXISTS est_inscrit(varchar) CASCADE;
 DROP FUNCTION IF EXISTS abonneExiste(id INTEGER) CASCADE;
 DROP FUNCTION IF EXISTS unsubscribeAbonne(varchar, varchar) CASCADE;
 DROP FUNCTION IF EXISTS getAge(integer) CASCADE;
-
+DROP FUNCTION IF EXISTS get_type_abo(id integer) CASCADE;
+DROP FUNCTION IF EXISTS check_type_abo(id_spe integer) CASCADE;
 
 /**********************************************************************************************************/
 
@@ -42,9 +41,10 @@ end;
 $$ LANGUAGE plpgsql;
 
 /***********************************************************************************************************/
+
 ------ Creation d'un film
 create or replace function creationFilm(id_films INTEGER, titre VARCHAR(255), genre varchar(255),
-                                        nationalite varchar(255), langue varchar(255), synopsis varchar(255),
+                                        nationalite varchar(255), langue varchar(255),
                                         montant_film integer) returns void as
 $$
 begin
@@ -58,19 +58,16 @@ begin
         raise EXCEPTION 'nationalite is null';
     elsif langue is null or langue = '' then
         raise EXCEPTION 'langues is null';
-    elsif synopsis is null or synopsis = '' then
-        raise EXCEPTION 'synopsis is null';
     elsif montant_film is null then
         raise EXCEPTION 'montant is null';
 
     ELSE
-        INSERT INTO Film(id_film, titre, genre, nationalite, langue, synopsis, prix_film, id_distri)
-        VALUES (id_films, titre, genre, nationalite, langue, synopsis, prix_film, id_distri);
+        INSERT INTO Film(id_film, titre, genre, nationalite, langue, prix_film, id_distri)
+        VALUES (id_films, titre, genre, nationalite, langue, prix_film, id_distri);
     end if;
 end ;
 
 $$ LANGUAGE plpgsql;
-
 
 /***********************************************************************************************************/
 
@@ -90,6 +87,7 @@ BEGIN
 end;
 
 $$ LANGUAGE plpgsql;
+
 
 /***********************************************************************************************************/
 
@@ -111,16 +109,15 @@ $$ LANGUAGE plpgsql;
 /***********************************************************************************************************/
 
 --creation Programmateur--
-CREATE OR REPLACE FUNCTION creationProgrammateur(nom text, solde bigint) RETURNS VOID AS
+CREATE OR REPLACE FUNCTION creationProgrammateur(nom text) RETURNS VOID AS
 $$
 BEGIN
 
     if nom is null or nom = '' then
         raise exception 'nom is null';
-    elsif solde is null then
-        raise exception 'solde is null';
+
     ELSE
-        INSERT INTO Programmateur(nom_prog, solde, id_spec) VALUES (nom, solde, id_spec);
+        INSERT INTO Programmateur(nom_prog, fk_abo_prog) VALUES (nom, fk_abo_prog);
     end if;
 
 end;
@@ -221,12 +218,12 @@ $$ LANGUAGE plpgsql;
 /***********************************************************************************************************/
 
 --creation d'un abonee
-create or replace function creationAbonne(pseudo varchar, name varchar, pnom varchar, sexe varchar, age int,
+create or replace function creationAbonne(id integer, name varchar, pnom varchar, sex varchar, age int,
                                           mail varchar, typeabo varchar) returns void as
 $$
 begin
-    insert into abonne(pseudo, nom, prenom, sexe, age, email, type_abo)
-    values (pseudo, name, pnom, sexe, age, mail, typeabo);
+    insert into abonne(id_abo, nom, prenom, sexe, age, email, type_abo)
+    values (id, name, pnom, sex, age, mail, typeabo);
 end;
 $$ language plpgsql;
 
@@ -254,7 +251,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION abonneExiste(id INTEGER) RETURNS BOOLEAN AS
 $$
 BEGIN
-    IF exists(select 1 from abonne where abonne.id_spec = id)
+    IF exists(select 1 from abonne where abonne.id_abo = id)
     then
         return true ;
     else
@@ -264,13 +261,13 @@ end;
 
 $$ LANGUAGE plpgsql;
 
-create or replace function est_inscrit(integer) returns boolean as
+create or replace function est_inscrit(abo integer) returns boolean as
 $$
 declare
     res boolean ;
 
 begin
-    select into res from abonne where id_spec = $1;
+    select into res from abonne where id_abo = $1;
     if not found then
         res := false;
         return res;
@@ -283,17 +280,17 @@ $$ language plpgsql;
 create or replace function unsubscribeAbonne(varchar, varchar) returns void as
 $$
 begin
-    delete from abonne where pseudo = $1 and email = $2 ;
+    delete from abonne where nom = $1 and email = $2 ;
 end;
 $$ language plpgsql;
 
 -- fonction qui recupere age
-create or replace function getAge(id_abo integer) returns integer as
+create or replace function getAge(id integer) returns integer as
 $$
 declare
     _age integer;
 begin
-    select age into _age from abonne where id_spec = id_abo;
+    select age into _age from abonne where id_abo = $1;
     return _age;
 end;
 $$ language plpgsql;
@@ -302,11 +299,11 @@ $$ language plpgsql;
 -------------------------------------------reservation------------------------------------------------------
 
 --verification de la reservation --
-create or replace function est_reserve(id_spe integer) returns boolean as
+create or replace function est_reserve(id_abo integer) returns boolean as
 $$
 begin
 
-    if exists(select 1 from reservation where reservation.fk_seance = id_spe)
+    if exists(select 1 from reservation where reservation.fk_seance = id_abo)
     then
         raise notice 'Labo a deja reservé pour cette seance ';
         return false;
@@ -319,12 +316,12 @@ $$ language plpgsql;
 
 
 --- Le nombre de reservation qu'un abo peut faire est limité a 2
-create or replace function check_nb_resa(id_spe integer) returns boolean as
+create or replace function check_nb_resa(id integer) returns boolean as
 $$
 declare
     nbres boolean ;
 begin
-    select count(*) <= 2 into nbres from reservation where fk_spec = id_spe;
+    select count(*) <= 2 into nbres from reservation where fk_abo = $1;
     if nbres is false
     then
         raise exception 'vous avez deja effectué une reservation';
@@ -333,10 +330,10 @@ begin
 end;
 $$ language plpgsql;
 
-create or replace function reserve(id_spe integer, id_sea integer) returns void as
+create or replace function reserve(id_abo integer, id_sea integer) returns void as
 $$
 begin
-    insert into reservation values (id_spe, id_sea);
+    insert into reservation values (id_abo, id_sea);
 end;
 $$ language plpgsql;
 
@@ -353,52 +350,16 @@ end;
 $$ language plpgsql;
 
 
-create or replace function get_type_abo(id_spe integer) returns varchar as
-$$
-declare
-    forfait varchar;
-begin
-
-    select type_abo into forfait from abonne where id_spec = id_spe;
-    return forfait;
-
-end;
-$$ language plpgsql;
-
-create or replace function check_type_abo(id_spe integer) returns boolean as
-$$
-begin
-    if (get_type_abo(id_spe) = 'Abonnement -26') then
-        return true ;
-    elsif (get_type_abo(id_spe) = 'Abonnement +26') then
-        return true ;
-    elsif (get_type_abo(id_spe) = 'Etudiant') then
-        return true ;
-    elsif (get_type_abo(id_spe) = 'Comite Entreprise') then
-        return true ;
-    else
-        return false ;
-    end if;
-end;
-$$ language plpgsql;
-
-create or replace function annul_reservation(id_spe integer, id_sea integer) returns void as
-$$
-begin
-    delete from reservation where fk_spec = id_spe and fk_seance = id_sea ;
-    raise notice 'reservation canceled' ;
-end;
-$$ language plpgsql;
 
 create or replace function check_reservation() returns trigger as
 $$
 begin
     if (seance_existe(new.fk_seance) is false) or
-       (abonneExiste(new.fk_spec) is false) or
-       (est_inscrit(new.fk_spec) is false) or
-       (est_reserve(new.fk_spec) is false) or
-       (check_type_abo(new.fk_spec) is false) or
-       (check_nb_resa(new.fk_spec) is false)
+       (abonneExiste(new.fk_abo) is false) or
+       (est_inscrit(new.fk_abo) is false) or
+       (est_reserve(new.fk_abo) is false) or
+       (check_type_abo(new.fk_abo) is false) or
+       (check_nb_resa(new.fk_abo) is false)
     then
         return null ;
     else
@@ -406,6 +367,44 @@ begin
     end if;
 end;
 $$ language plpgsql;
+
+create or replace function get_type_abo(id integer) returns varchar as
+$$
+declare
+    forfait varchar;
+begin
+
+    select type_abo into forfait from abonne where id_abo = id;
+    return forfait;
+
+end;
+$$ language plpgsql;
+
+create or replace function check_type_abo(id_abo integer) returns boolean as
+$$
+begin
+    if (get_type_abo(id_abo) = 'Abonnement -26') then
+        return true ;
+    elsif (get_type_abo(id_abo) = 'Abonnement +26') then
+        return true ;
+    elsif (get_type_abo(id_abo) = 'Etudiant') then
+        return true ;
+    elsif (get_type_abo(id_abo) = 'Comite Entreprise') then
+        return true ;
+    else
+        return false ;
+    end if;
+end;
+$$ language plpgsql;
+
+create or replace function annul_reservation(id_abo integer, id_sea integer) returns void as
+$$
+begin
+    delete from reservation where fk_abo = id_abo and fk_seance = id_sea;
+    raise notice 'reservation canceled';
+end;
+$$ language plpgsql;
+
 
 
 /***********************************************************************************************************/
@@ -568,13 +567,13 @@ $$ language plpgsql;
 
 
 --- creation d'une transaction
-CREATE OR REPLACE FUNCTION creationTransaction(spectateur integer, montant_trans bigint, quantite integer,
+CREATE OR REPLACE FUNCTION creationTransaction(abonne integer, montant_trans bigint, quantite integer,
                                                date_payement timestamp) RETURNS INTEGER AS
 $$
 DECLARE
     id_tr integer ;
 BEGIN
-    if abonneexiste(spectateur) then
+    if abonneexiste(abonne) then
         INSERT INTO Transaction(trans_spec, montant_trans, quantite, date_payement)
         VALUES ($1, $2, $3, $4)
         returning id_trans = id_tr;
@@ -591,6 +590,20 @@ BEGIN
 end ;
 $$ LANGUAGE plpgsql;
 
+
+CREATE OR REPLACE FUNCTION creationTransaction2(spectateur integer, montant_trans bigint, quantite integer,
+                                                date_payement timestamp) RETURNS INTEGER AS
+$$
+DECLARE
+    id_tr integer ;
+BEGIN
+    --if abonneexiste(spectateur) then
+    INSERT INTO Transaction(trans_spec, montant_trans, quantite, date_payement)
+    VALUES ($1, $2, $3, $4);
+    return 0;
+
+end ;
+$$ LANGUAGE plpgsql;
 
 
 create or replace function virement_transaction_achat(integer, text, bigint) returns void as

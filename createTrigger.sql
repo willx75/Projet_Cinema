@@ -1,23 +1,29 @@
 --reservation --
 DROP FUNCTION IF EXISTS get_billet_a_acheter(idseance integer, qte integer);
 DROP FUNCTION IF EXISTS check_nb_resa(id_spe integer) CASCADE;
+DROP TRIGGER IF EXISTS after_insert_reservation ON reservation;
+DROP TRIGGER IF EXISTS check_reservation on reservation;
 --billet
 DROP FUNCTION IF EXISTS getNbPlace_total_vente(id_ticket integer) cascade;
 DROP FUNCTION IF EXISTS nb_place_disponible(id integer) cascade;
+DROP FUNCTION IF EXISTS update_add_billet() cascade ;
 --transaction --
 DROP FUNCTION IF EXISTS get_solde_spec(int) cascade;
 DROP FUNCTION IF EXISTS get_solde_programmateur(int) cascade;
 DROP TRIGGER IF EXISTS after_insert_achat ON transaction cascade;
 DROP FUNCTION IF EXISTS check_inscription() cascade;
+DROP FUNCTION IF EXISTS date_reservation()cascade ;
+DROP FUNCTION IF EXISTS achat_trigger()cascade ;
 
 DROP TRIGGER IF EXISTS before_insert_abonne ON abonne cascade;
 
+DROP FUNCTION IF EXISTS  message_trigger() cascade ;
 DROP TRIGGER IF EXISTS before_add_billets ON billet;
 DROP TRIGGER IF EXISTS after_message_trigger ON message;
-
+DROP TRIGGER IF EXISTS before_insert_reservation on reservation;
 
 /***********************************************************************************************************/
-
+/**
 create or replace function check_inscription() returns trigger as
 $$
 declare
@@ -25,9 +31,9 @@ declare
 begin
     if exists(select into bool
               from abonne
-              where pseudo = new.pseudo
-                and nom = new.nom
+              where nom = new.nom
                 and prenom = new.prenom
+                and email = new.email
                 and age = new.age)
     then
         raise exception 'abonne deja inscrit';
@@ -37,7 +43,7 @@ begin
 end;
 
 $$ language plpgsql;
-
+**/
 
 /***********************************************************************************************************/
 
@@ -47,6 +53,7 @@ begin
     update reservation set date_resa= getDate() where fk_seance = new.fk_seance;
 end;
 $$ language plpgsql;
+
 
 /***********************************************************************************************************/
 
@@ -62,7 +69,7 @@ begin
                  'par : ' || new.trans_spec || '. Pour consulter la transaction, le numero est : ' || new.id_trans;
 
     raise notice 'message finale : % ', msg_final;
-    insert into message(expediteur, date_envoie, fk_abo, fk_trans, msg)
+    insert into message(expediteur, date_envoie, fk_abo_mess, fk_trans, msg)
     VALUES ('gestionnaire', CURRENT_TIMESTAMP, new.trans_spec, new.id_trans, msg_final);
     return new;
 end;
@@ -78,7 +85,7 @@ BEGIN
 
     SELECT solde_spec
     INTO res
-    FROM spectateur
+    FROM abonne
     WHERE new.trans_spec = id_spec;
 
     IF 100 <= (SELECT montant_trans
@@ -95,16 +102,6 @@ BEGIN
 END;
 $$ language plpgsql;
 
-
-create or replace function get_solde_programmateur(varchar) returns integer as
-$$
-declare
-    res integer;
-begin
-    select solde into res from programmateur where nom_prog = $1;
-end;
-
-$$ language plpgsql;
 /***********************************************************************************************************/
 
 -------------------------------------------billet------------------------------------------------------
@@ -149,7 +146,7 @@ declare
     msg_final text;
 begin
 
-    msg_final := new.fk_abo || ', vous avez un nouveau message de ' || new.expediteur;
+    msg_final := new.fk_abo_mess || ', vous avez un nouveau message de ' || new.expediteur;
     raise notice '%',msg_final;
     return new;
 END;
@@ -166,11 +163,12 @@ EXECUTE PROCEDURE message_trigger();
 
 -------------trigger ---------
 
-create trigger before_insert_abonne
+/**create trigger before_insert_abonne
     before insert
     on abonne
     for each row
 execute procedure check_inscription();
+**/
 
 create trigger before_insert_reservation
     before insert
